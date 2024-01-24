@@ -140,20 +140,20 @@ function loseGame(state: BoardState, args: LoseGameArgs) {
   return next;
 }
 
-function reset(args: ResetArgs): BoardState {
+export function reset({height, width, mineAmount}: ResetArgs): BoardState {
   return {
-    grid: buildGrid(args),
+    grid: buildGrid(height, width),
     flags: [],
-    covered: args.height * args.width,
+    covered: height * width,
     gameState: GameState.Pending,
-    remaining: args.mineAmount,
+    remaining: mineAmount,
   };
 }
 
-export const buildGrid = (props: BoardProps): Grid =>
-  Array(props.height)
+export const buildGrid = (height: number, width: number): Grid =>
+  Array(height)
     .fill(null)
-    .map(() => Array(props.width).fill(CellValue.Covered));
+    .map(() => Array(width).fill(CellValue.Covered));
 
 function flag(state: BoardState, args: FlagArgs): BoardState {
   const next = copy(state);

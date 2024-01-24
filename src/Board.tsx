@@ -1,149 +1,48 @@
 import {
-  Dispatch,
   MouseEvent,
-  MutableRefObject,
   useReducer,
   useRef,
 } from "react";
-import {
-  canGroupReveal,
-  CellValue,
-  displayCell,
-  toNumber,
-} from "./CellValue";
+import { canGroupReveal, CellValue, displayCell, toNumber } from "./CellValue";
 import {
   Coordinate,
   GameState,
-  BoardState,
   ReprActions,
-  ReprDispatch,
   reprReducer,
   calculateAdjacent,
-  buildGrid,
+  reset,
 } from "./Repr";
 
-export default function Board(props: BoardProps) {
-  const mines = useRef(generateMines(props));
+export default function Board({ height, width, mineAmount }: BoardProps) {
+  const mines = useRef(generateMines(height, width, mineAmount));
   const minesContain = useRef(minesContainFactory(mines.current));
 
-  const [state, reprDispatch] = useReducer(reprReducer, {
-    grid: buildGrid(props),
-    remaining: props.mineAmount,
-    covered: props.height * props.width,
-    gameState: GameState.Pending,
-    flags: [],
-  });
-
-  return (
-    <div
-      style={{ display: "flex", alignItems: "center", height: "100vh" }}
-      onDoubleClick={function (e) {
-        e.preventDefault();
-      }}
-    >
-      <table
-        style={{
-          marginLeft: "auto",
-          marginRight: "auto",
-          width: "70%",
-          height: "70%",
-          tableLayout: "fixed",
-        }}
-        onClick={
-          state.gameState === GameState.Pending
-            ? onClickFactory(
-                state,
-                minesContain.current,
-                mines.current,
-                props.width,
-                props.height,
-                reprDispatch,
-              )
-            : undefined
-        }
-        onDoubleClick={
-          state.gameState === GameState.Pending
-            ? onDblClickFactory(
-                state,
-                props.width,
-                props.height,
-                minesContain.current,
-                reprDispatch,
-              )
-            : undefined
-        }
-      >
-        <caption>
-          <button
-            onClick={newGameFactory(props, mines, minesContain, reprDispatch)}
-          >
-            <h1>{displayCaption(state.gameState)}</h1>
-          </button>
-        </caption>
-        <tbody>
-          {Array.from(Array(props.height), (_, i) => i).map((y) => (
-            <tr key={y}>
-              {Array.from(Array(props.width), (_, i) => i).map((x) => (
-                <td
-                  key={x}
-                  onContextMenu={
-                    state.gameState === GameState.Pending
-                      ? onRightClickFactory(
-                          state,
-                          x,
-                          y,
-                          reprDispatch
-                        )
-                      : undefined
-                  }
-                >
-                  {displayCell(state.grid[y][x])}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+  const [state, reprDispatch] = useReducer(
+    reprReducer,
+    reset({ height, width, mineAmount }),
   );
-}
 
-const newGameFactory = (
-  props: BoardProps,
-  mines: MutableRefObject<Coordinate[]>,
-  minesContain: MutableRefObject<MinesContainFn>,
-  reprDispatch: Dispatch<ReprDispatch>,
-) =>
-  function (e: MouseEvent<HTMLElement>) {
-    mines.current = generateMines(props);
+  function handleClickNewGAme(e: MouseEvent<HTMLElement>) {
+    mines.current = generateMines(height, width, mineAmount);
     minesContain.current = minesContainFactory(mines.current);
-    reprDispatch({ type: ReprActions.Reset, args: props });
+    reprDispatch({
+      type: ReprActions.Reset,
+      args: { height, width, mineAmount },
+    });
     e.stopPropagation();
-  };
+  }
 
-const onRightClickFactory = (
-  state: BoardState,
-  x: number,
-  y: number,
-  reprDispatch: Dispatch<ReprDispatch>,
-) =>
-  function (e: MouseEvent<HTMLElement>) {
-    e.preventDefault();
-    if (state.grid[y][x] === CellValue.Covered) {
-      reprDispatch({ type: ReprActions.Flag, args: { x: x, y: y } });
-    } else if (state.grid[y][x] === CellValue.Flag) {
-      reprDispatch({ type: ReprActions.Unflag, args: { x: x, y: y } });
-    }
-  };
+  const handleRightClick =
+    (x: number, y: number) => (e: MouseEvent<HTMLElement>) => {
+      e.preventDefault();
+      if (state.grid[y][x] === CellValue.Covered) {
+        reprDispatch({ type: ReprActions.Flag, args: { x: x, y: y } });
+      } else if (state.grid[y][x] === CellValue.Flag) {
+        reprDispatch({ type: ReprActions.Unflag, args: { x: x, y: y } });
+      }
+    };
 
-const onDblClickFactory = (
-  state: BoardState,
-  width: number,
-  height: number,
-  minesContain: MinesContainFn,
-  reprDispatch: Dispatch<ReprDispatch>,
-) =>
-  function (e: MouseEvent<HTMLElement>) {
+  function handleDoubleClick(e: MouseEvent<HTMLElement>) {
     const [x, y] = extractCoordsFromEvent(e);
     if (canGroupReveal(state.grid[y][x])) {
       const adjCovered = [];
@@ -165,13 +64,89 @@ const onDblClickFactory = (
           args: {
             width: width,
             height: height,
-            minesContain: minesContain,
+            minesContain: minesContain.current,
             stack: adjCovered,
           },
         });
       }
     }
-  };
+  }
+
+  function handleClick(e: MouseEvent<HTMLElement>) {
+    const [x, y] = extractCoordsFromEvent(e);
+
+    if (state.grid[y][x] === CellValue.Flag) {
+      return;
+    }
+
+    if (minesContain.current(x, y)) {
+      reprDispatch({
+        type: ReprActions.LoseGame,
+        args: { x: x, y: y, mines: mines.current },
+      });
+      return;
+    }
+
+    reprDispatch({
+      type: ReprActions.RevealCell,
+      args: {
+        width: width,
+        height: height,
+        minesContain: minesContain.current,
+        stack: [{ x: x, y: y }],
+      },
+    });
+  }
+
+  return (
+    <div
+      style={{ display: "flex", alignItems: "center", height: "100vh" }}
+      onDoubleClick={function (e) {
+        e.preventDefault();
+      }}
+    >
+      <table
+        style={{
+          marginLeft: "auto",
+          marginRight: "auto",
+          width: "70%",
+          height: "70%",
+          tableLayout: "fixed",
+        }}
+        onClick={
+          state.gameState === GameState.Pending ? handleClick : undefined
+        }
+        onDoubleClick={
+          state.gameState === GameState.Pending ? handleDoubleClick : undefined
+        }
+      >
+        <caption>
+          <button onClick={handleClickNewGAme}>
+            <h1>{displayCaption(state.gameState)}</h1>
+          </button>
+        </caption>
+        <tbody>
+          {Array.from(Array(height), (_, i) => i).map((y) => (
+            <tr key={y}>
+              {Array.from(Array(width), (_, i) => i).map((x) => (
+                <td
+                  key={x}
+                  onContextMenu={
+                    state.gameState === GameState.Pending
+                      ? handleRightClick(x, y)
+                      : undefined
+                  }
+                >
+                  {displayCell(state.grid[y][x])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function extractCoordsFromEvent(e: MouseEvent<HTMLElement>): [number, number] {
   const eventTarget = e.target as HTMLTableCellElement;
@@ -194,48 +169,14 @@ function displayCaption(gameState: GameState): string {
   }
 }
 
-const onClickFactory = (
-  state: BoardState,
-  minesContain: MinesContainFn,
-  mines: Coordinate[],
-  width: number,
-  height: number,
-  reprDispatch: Dispatch<ReprDispatch>,
-) =>
-  function (e: MouseEvent<HTMLElement>) {
-    const [x, y] = extractCoordsFromEvent(e);
-
-    if (state.grid[y][x] === CellValue.Flag) {
-      return;
-    }
-
-    if (minesContain(x, y)) {
-      reprDispatch({
-        type: ReprActions.LoseGame,
-        args: { x: x, y: y, mines: mines },
-      });
-      return;
-    }
-
-    reprDispatch({
-      type: ReprActions.RevealCell,
-      args: {
-        width: width,
-        height: height,
-        minesContain: minesContain,
-        stack: [{ x: x, y: y }],
-      },
-    });
-  };
-
 export type MinesContainFn = (x: number, y: number) => boolean;
 
 const minesContainFactory = (mines: Coordinate[]) => (x: number, y: number) =>
   mines.filter((v) => v.x == x && v.y == y).length > 0;
 
-function generateMines(props: BoardProps) {
-  const xValues = generateRandomInts(props.width, props.mineAmount);
-  const yValues = generateRandomInts(props.height, props.mineAmount);
+function generateMines(height: number, width: number, mineAmount: number) {
+  const xValues = generateRandomInts(width, mineAmount);
+  const yValues = generateRandomInts(height, mineAmount);
   return zip(xValues, yValues);
 }
 
@@ -260,4 +201,3 @@ function zip(left: number[], right: number[]): Coordinate[] {
 }
 
 export type BoardProps = { height: number; width: number; mineAmount: number };
-
