@@ -1,10 +1,6 @@
-import {
-  MouseEvent,
-  useReducer,
-  useRef,
-} from "react";
+import { MouseEvent, useRef } from "react";
 import { useImmerReducer } from "use-immer";
-import { canGroupReveal, CellValue, displayCell, toNumber } from "./CellValue";
+import { canGroupReveal, CellValue, toNumber } from "./CellValue";
 import {
   Coordinate,
   GameState,
@@ -13,6 +9,7 @@ import {
   calculateAdjacent,
   reset,
 } from "./Repr";
+import "./Board.css";
 
 export default function Board({ height, width, mineAmount }: BoardProps) {
   const mines = useRef(generateMines(height, width, mineAmount));
@@ -43,8 +40,17 @@ export default function Board({ height, width, mineAmount }: BoardProps) {
       }
     };
 
-  function handleDoubleClick(e: MouseEvent<HTMLElement>) {
-    const [x, y] = extractCoordsFromEvent(e);
+  function handleClick(e: MouseEvent<HTMLElement>) {
+    const coords = extractCoordsFromEvent(e);
+    if (coords == null) {
+      return;
+    }
+    const [x, y] = coords;
+
+    if (state.grid[y][x] === CellValue.Flag) {
+      return;
+    }
+
     if (canGroupReveal(state.grid[y][x])) {
       const adjCovered = [];
       const flags = [];
@@ -66,17 +72,11 @@ export default function Board({ height, width, mineAmount }: BoardProps) {
             width: width,
             height: height,
             minesContain: minesContain.current,
+            mines: mines.current,
             stack: adjCovered,
           },
         });
       }
-    }
-  }
-
-  function handleClick(e: MouseEvent<HTMLElement>) {
-    const [x, y] = extractCoordsFromEvent(e);
-
-    if (state.grid[y][x] === CellValue.Flag) {
       return;
     }
 
@@ -94,6 +94,7 @@ export default function Board({ height, width, mineAmount }: BoardProps) {
         width: width,
         height: height,
         minesContain: minesContain.current,
+        mines: mines.current,
         stack: [{ x: x, y: y }],
       },
     });
@@ -101,36 +102,36 @@ export default function Board({ height, width, mineAmount }: BoardProps) {
 
   return (
     <div
-      style={{ display: "flex", alignItems: "center", height: "100vh" }}
+      className="h-screen align-middle place-content-center table-fixed flex items-center bg-slate-800"
       onDoubleClick={function (e) {
         e.preventDefault();
       }}
     >
       <table
-        style={{
-          marginLeft: "auto",
-          marginRight: "auto",
-          width: "70%",
-          height: "70%",
-          tableLayout: "fixed",
-        }}
+        className="h-3/5 aspect-square table-fixed"
         onClick={
           state.gameState === GameState.Pending ? handleClick : undefined
         }
-        onDoubleClick={
-          state.gameState === GameState.Pending ? handleDoubleClick : undefined
-        }
       >
-        <caption>
-          <button onClick={handleClickNewGame}>
-            <h1>{displayCaption(state.gameState)}</h1>
+        <caption className="board--caption">
+          <button
+            className="align-middle w-60 h-12 bg-green-500 hover:bg-green-400 rounded-md"
+            onClick={handleClickNewGame}
+          >
+            <h1 className="text-neutral-700 text-3xl">
+              {displayCaption(state.gameState)}
+            </h1>
           </button>
         </caption>
         <tbody>
           {Array.from(Array(height), (_, i) => i).map((y) => (
-            <tr key={y}>
+            <tr key={y} className="h-8">
               {Array.from(Array(width), (_, i) => i).map((x) => (
                 <td
+                  className={calculcateTdClass(
+                    state.grid[y][x],
+                    state.gameState,
+                  )}
                   key={x}
                   onContextMenu={
                     state.gameState === GameState.Pending
@@ -149,14 +150,73 @@ export default function Board({ height, width, mineAmount }: BoardProps) {
   );
 }
 
-function extractCoordsFromEvent(e: MouseEvent<HTMLElement>): [number, number] {
+function calculcateTdClass(cellValue: CellValue, gameState: GameState) {
+  var common = "w-8 ";
+  switch (cellValue) {
+    case CellValue.Covered:
+      common += "text-neutral-700 bg-sky-400";
+      if (gameState === GameState.Pending) {
+        common += " hover:bg-sky-300";
+      }
+      break;
+    case CellValue.WrongFlag:
+    case CellValue.Flag:
+      common += "text-center text-neutral-700 bg-sky-400";
+      if (gameState === GameState.Pending) {
+        common += " hover:bg-sky-300";
+      }
+      break;
+    case CellValue.Exploded:
+      common += "text-center text-neutral-700 bg-red-400";
+      break;
+    default:
+      common += "text-center text-neutral-200";
+  }
+
+  return common;
+}
+
+function displayCell(cell: CellValue): string {
+  switch (cell) {
+    case CellValue.One:
+      return "1";
+    case CellValue.Two:
+      return "2";
+    case CellValue.Three:
+      return "3";
+    case CellValue.Four:
+      return "4";
+    case CellValue.Five:
+      return "5";
+    case CellValue.Six:
+      return "6";
+    case CellValue.Seven:
+      return "7";
+    case CellValue.Eight:
+      return "8";
+    case CellValue.Exploded:
+      return "💥";
+    case CellValue.Flag:
+      return "🚩";
+    case CellValue.WrongFlag:
+      return "❌";
+    case CellValue.Mine:
+      return "💣";
+    default:
+      return " ";
+  }
+}
+
+function extractCoordsFromEvent(
+  e: MouseEvent<HTMLElement>,
+): [number, number] | null {
   const eventTarget = e.target as HTMLTableCellElement;
-  const eventParent = eventTarget.parentElement as HTMLTableRowElement;
+  const eventParent = eventTarget?.parentElement as HTMLTableRowElement;
 
-  const y = eventParent.rowIndex;
-  const x = eventTarget.cellIndex;
+  const y = eventParent?.rowIndex;
+  const x = eventTarget?.cellIndex;
 
-  return [x, y];
+  return x != null && y != null ? [x, y] : null;
 }
 
 function displayCaption(gameState: GameState): string {
@@ -175,30 +235,26 @@ export type MinesContainFn = (x: number, y: number) => boolean;
 const minesContainFactory = (mines: Coordinate[]) => (x: number, y: number) =>
   mines.filter((v) => v.x == x && v.y == y).length > 0;
 
-function generateMines(height: number, width: number, mineAmount: number) {
-  const xValues = generateRandomInts(width, mineAmount);
-  const yValues = generateRandomInts(height, mineAmount);
-  return zip(xValues, yValues);
+function generateMines(
+  height: number,
+  width: number,
+  mineAmount: number,
+): Coordinate[] {
+  const mines = new Set<string>();
+  while (mines.size !== mineAmount) {
+    const x = getRandomInt(width);
+    const y = getRandomInt(height);
+    const key = x.toString() + y.toString();
+    mines.add(key);
+  }
+  return Array.from(mines).map((k) => ({
+    x: parseInt(k[0]),
+    y: parseInt(k[1]),
+  }));
 }
 
 function getRandomInt(max: number): number {
   return Math.floor(Math.random() * max);
-}
-
-function generateRandomInts(max: number, size: number): number[] {
-  const result = [];
-  for (let i = 0; i < size; i++) {
-    result.push(getRandomInt(max));
-  }
-  return result;
-}
-
-function zip(left: number[], right: number[]): Coordinate[] {
-  const result = [];
-  for (let i = 0; i < Math.min(left.length, right.length); i++) {
-    result.push({ x: left[i], y: right[i] });
-  }
-  return result;
 }
 
 export type BoardProps = { height: number; width: number; mineAmount: number };

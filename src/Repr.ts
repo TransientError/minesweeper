@@ -28,7 +28,7 @@ export function reprReducer(
 
 function iterativeReveal(
   state: BoardState,
-  { width, height, minesContain, ...vars }: RevealCellArgs,
+  { width, height, minesContain, mines, ...vars }: RevealCellArgs,
 ): void {
   var stack = [...vars.stack];
   while (stack.length > 0) {
@@ -47,6 +47,9 @@ function iterativeReveal(
     }
   }
   if (state.covered === state.remaining) {
+    for (const mine of mines) {
+      state.grid[mine.y][mine.x] = CellValue.Flag;
+    }
     state.gameState = GameState.Won;
   }
 }
@@ -209,6 +212,7 @@ export type RevealCellArgs = {
   width: number;
   height: number;
   minesContain: MinesContainFn;
+  mines: Coordinate[];
   stack: Coordinate[];
 };
 

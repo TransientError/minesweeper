@@ -40,41 +40,6 @@ export function fromNumber(n: number): CellValue {
   }
 }
 
-export function displayCell(cell: CellValue): string {
-  switch (cell) {
-    case CellValue.Covered:
-      return "[ ]";
-    case CellValue.One:
-      return "1";
-    case CellValue.Zero:
-      return "0";
-    case CellValue.Two:
-      return "2";
-    case CellValue.Three:
-      return "3";
-    case CellValue.Four:
-      return "4";
-    case CellValue.Five:
-      return "5";
-    case CellValue.Six:
-      return "6";
-    case CellValue.Seven:
-      return "7";
-    case CellValue.Eight:
-      return "8";
-    case CellValue.Exploded:
-      return "💥";
-    case CellValue.Flag:
-      return "🚩";
-    case CellValue.WrongFlag:
-      return "❌";
-    case CellValue.Mine:
-      return "💣";
-    default:
-      return "u";
-  }
-}
-
 export const canGroupReveal = (c: CellValue): boolean =>
   [
     CellValue.One,
