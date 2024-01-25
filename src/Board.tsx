@@ -3,6 +3,7 @@ import {
   useReducer,
   useRef,
 } from "react";
+import { useImmerReducer } from "use-immer";
 import { canGroupReveal, CellValue, displayCell, toNumber } from "./CellValue";
 import {
   Coordinate,
@@ -17,12 +18,12 @@ export default function Board({ height, width, mineAmount }: BoardProps) {
   const mines = useRef(generateMines(height, width, mineAmount));
   const minesContain = useRef(minesContainFactory(mines.current));
 
-  const [state, reprDispatch] = useReducer(
+  const [state, reprDispatch] = useImmerReducer(
     reprReducer,
     reset({ height, width, mineAmount }),
   );
 
-  function handleClickNewGAme(e: MouseEvent<HTMLElement>) {
+  function handleClickNewGame(e: MouseEvent<HTMLElement>) {
     mines.current = generateMines(height, width, mineAmount);
     minesContain.current = minesContainFactory(mines.current);
     reprDispatch({
@@ -121,7 +122,7 @@ export default function Board({ height, width, mineAmount }: BoardProps) {
         }
       >
         <caption>
-          <button onClick={handleClickNewGAme}>
+          <button onClick={handleClickNewGame}>
             <h1>{displayCaption(state.gameState)}</h1>
           </button>
         </caption>

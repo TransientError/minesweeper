@@ -6,55 +6,50 @@ export type Grid = CellValue[][];
 export function reprReducer(
   state: BoardState,
   action: ReprDispatch,
-): BoardState {
+): undefined | BoardState {
   switch (action.type) {
     case ReprActions.LoseGame: {
-      return loseGame(state, action.args as LoseGameArgs);
+      return void loseGame(state, action.args as LoseGameArgs);
     }
     case ReprActions.RevealCell: {
-      return iterativeReveal(state, action.args as RevealCellArgs);
+      return void iterativeReveal(state, action.args as RevealCellArgs);
     }
     case ReprActions.Reset: {
       return reset(action.args as ResetArgs);
     }
     case ReprActions.Flag: {
-      return flag(state, action.args as FlagArgs);
+      return void flag(state, action.args as FlagArgs);
     }
     case ReprActions.Unflag: {
-      return unflag(state, action.args as FlagArgs);
+      return void unflag(state, action.args as FlagArgs);
     }
   }
 }
 
-function iterativeReveal(state: BoardState, args: RevealCellArgs): BoardState {
-  const { width, height, minesContain, ...vars } = args;
+function iterativeReveal(
+  state: BoardState,
+  { width, height, minesContain, ...vars }: RevealCellArgs,
+): void {
   var stack = [...vars.stack];
-  var next = copy(state);
   while (stack.length > 0) {
     const p = stack.pop()!;
-    const [count, adjacent, nextState] = calculateCount(
+    const [count, adjacent] = calculateCount(
       p.x,
       p.y,
       width,
       height,
       minesContain,
-      next,
+      state
     );
 
     if (count === 0) {
       stack = stack.concat(adjacent);
     }
-    next = nextState;
   }
-  if (next.covered === next.remaining) {
-    next.gameState = GameState.Won;
+  if (state.covered === state.remaining) {
+    state.gameState = GameState.Won;
   }
-  return next;
 }
-
-const copy = (state: BoardState): BoardState => {
-  return { ...state, grid: state.grid.map(a => [...a]) };
-};
 
 function calculateCount(
   x: number,
@@ -63,8 +58,7 @@ function calculateCount(
   yLen: number,
   minesContain: MinesContainFn,
   state: BoardState,
-): [number, Coordinate[], BoardState] {
-  const next = { ...state };
+): [number, Coordinate[]] {
   const adjacent = calculateAdjacent(x, y, xLen, yLen).filter(
     (p) =>
       state.grid[p.y][p.x] === CellValue.Covered ||
@@ -72,10 +66,11 @@ function calculateCount(
   );
   const count = adjacent.filter((p) => minesContain(p.x, p.y)).length;
   if (state.grid[y][x] === CellValue.Covered) {
-    next.covered = state.covered - 1;
+    state.covered -= 1;
   }
-  next.grid[y][x] = fromNumber(count);
-  return [count, adjacent, next];
+  state.grid[y][x] = fromNumber(count);
+  console.log(state.grid[y][x])
+  return [count, adjacent];
 }
 
 export function calculateAdjacent(
@@ -118,10 +113,8 @@ export function calculateAdjacent(
   return result;
 }
 
-function loseGame(state: BoardState, args: LoseGameArgs) {
-  const { x, y, mines } = args;
-  const next = copy(state);
-  next.grid[y][x] = CellValue.Exploded;
+function loseGame(state: BoardState, { x, y, mines }: LoseGameArgs): void {
+  state.grid[y][x] = CellValue.Exploded;
   for (const mine of mines) {
     if (
       (mine.x !== x || mine.y !== y) &&
@@ -133,14 +126,13 @@ function loseGame(state: BoardState, args: LoseGameArgs) {
   }
   for (const flag of state.flags) {
     if (!mines.some((m) => m.x == flag.x && m.y == flag.y)) {
-      next.grid[flag.y][flag.x] = CellValue.WrongFlag;
+      state.grid[flag.y][flag.x] = CellValue.WrongFlag;
     }
   }
-  next.gameState = GameState.Lost;
-  return next;
+  state.gameState = GameState.Lost;
 }
 
-export function reset({height, width, mineAmount}: ResetArgs): BoardState {
+export function reset({ height, width, mineAmount }: ResetArgs): BoardState {
   return {
     grid: buildGrid(height, width),
     flags: [],
@@ -155,38 +147,29 @@ export const buildGrid = (height: number, width: number): Grid =>
     .fill(null)
     .map(() => Array(width).fill(CellValue.Covered));
 
-function flag(state: BoardState, args: FlagArgs): BoardState {
-  const next = copy(state);
-  const { x, y } = args;
-  next.flags = state.flags.concat([{ x: x, y: y }]);
-  next.covered = state.covered - 1;
-  next.grid[y][x] = CellValue.Flag;
-  next.remaining = state.remaining - 1;
+function flag(state: BoardState, {x, y}: FlagArgs): void {
+  state.flags.push({ x: x, y: y });
+  state.covered = state.covered - 1;
+  state.grid[y][x] = CellValue.Flag;
+  state.remaining = state.remaining - 1;
 
-  if (next.covered === next.remaining) {
-    next.gameState = GameState.Won;
+  if (state.covered === state.remaining) {
+    state.gameState = GameState.Won;
   }
-
-  return next;
 }
 
-function unflag(state: BoardState, args: FlagArgs): BoardState {
-  const next = copy(state);
-  const { x, y } = args;
-  next.flags.splice(
+function unflag(state: BoardState, {x, y}: FlagArgs): void {
+  state.flags.splice(
     state.flags.findIndex((f) => f.y == y && f.x == x),
     1,
   );
-  next.flags = state.flags;
-  next.remaining = state.remaining + 1;
-  next.grid[y][x] = CellValue.Covered;
-  next.covered = state.covered + 1;
+  state.remaining = state.remaining + 1;
+  state.grid[y][x] = CellValue.Covered;
+  state.covered = state.covered + 1;
 
-  if (next.covered === next.remaining) {
-    next.gameState = GameState.Won;
+  if (state.covered === state.remaining) {
+    state.gameState = GameState.Won;
   }
-
-  return next;
 }
 
 export type BoardState = {
